@@ -21,13 +21,15 @@ For Apple Reminders interoperability, connect both clients to the same Nextcloud
 
 - Discover CalDAV task lists and synchronize all lists in one action.
 - Create, edit, complete, reopen and delete ordinary tasks; edit titles and notes.
+- Quick-add tasks from the list header with Enter; search from the left sidebar.
+- Set or clear due dates and set a display reminder date and time.
 - Local SQLite cache and durable offline upload queue.
 - Conditional writes using ETags; preserve local edits when concurrent server changes cause conflicts.
 - Preserve untouched iCalendar fields, including Apple extensions, due dates, time zones and alarms.
 - Native Windows Credential Manager integration, including password replacement and removal.
 - Sidebar task views, list counts and application icon. The current interface is Chinese.
 
-Recurring tasks, recurrence exceptions and tasks with organizers/attendees are read-only. There is no due-date editor, subtask creation, Windows reminder notification, background synchronization, automatic updater, list creation or multi-account interface yet. This is an early community release.
+Recurring tasks, recurrence exceptions and tasks with organizers/attendees are read-only. There is no subtask creation, Windows background reminder notification, background synchronization, automatic updater, list creation or multi-account interface yet. CalDAV reminders are stored with the task; this app does not show Windows toast reminders. This is an early community release.
 
 Task content is stored in ordinary SQLite at `%LOCALAPPDATA%\PlanifyWindowsCommunity\tasks.db`; it is not encrypted by this app. Exit the app before backing up that directory. Passwords are stored separately by Windows Credential Manager for the current Windows user on this machine. Uninstalling preserves task data and saved credentials. Use “forget saved password” inside the app before uninstalling if you want to remove its saved credential.
 
@@ -45,7 +47,7 @@ wix extension add --global WixToolset.UI.wixext/5.0.2
 ./installer/Build-Installer.ps1 -PublishDir artifacts/publish
 ```
 
-`Planify.Core` contains synchronization, iCalendar and persistence; `Planify.App` contains the WinUI interface. The 51 automated checks cover protocol handling, offline queues, batch sync and credential policy. Native credential storage and real-server interoperability require separate interactive testing.
+`Planify.Core` contains synchronization, iCalendar and persistence; `Planify.App` contains the WinUI interface. Automated checks cover protocol handling, offline queues, batch sync, credential policy, and due-date/reminder preservation. Native credential storage and real-server interoperability require separate interactive testing.
 
 ## License and attribution
 

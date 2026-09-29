@@ -14,9 +14,12 @@ public sealed class SyncEngine(LocalStore store, string accountKey)
         Tasks.Add(new() { Url = list.Url.TrimEnd('/') + "/" + Guid.NewGuid() + ".ics", ListUrl = list.Url, CalendarData = CalendarDocument.Create(title, description), Pending = "put" }); Save();
     }
     public void Edit(TaskEntry task, string title, string description, bool complete)
+        => Edit(task, title, description, complete, false, null, false, null);
+    public void Edit(TaskEntry task, string title, string description, bool complete, bool updateDue, DateOnly? dueDate, bool updateReminder, DateTimeOffset? reminderAt)
     {
         if (task.Conflict != null) throw new InvalidOperationException("请先解决同步冲突。");
-        task.CalendarData = CalendarDocument.Parse(task.CalendarData).Edit(title, description, complete); task.Pending = "put"; Save();
+        if (task.ReadOnly) throw new InvalidOperationException("重复或协作任务暂时只读。");
+        task.CalendarData = CalendarDocument.Parse(task.CalendarData).Edit(title, description, complete, updateDue, dueDate, updateReminder, reminderAt); task.Pending = "put"; Save();
     }
     public void Delete(TaskEntry task)
     {

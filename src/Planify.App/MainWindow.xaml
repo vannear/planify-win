@@ -13,9 +13,10 @@
   <Grid.ColumnDefinitions><ColumnDefinition Width="276"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
   <Border Background="{ThemeResource SidebarBrush}" BorderBrush="{ThemeResource DividerBrush}" BorderThickness="0,0,1,0">
    <Grid Padding="14,12" RowSpacing="14">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <Grid><TextBlock Text="Planify" FontWeight="SemiBold" FontSize="21" Margin="10,2"/><Button HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Click="Account_Click" ToolTipService.ToolTip="账户设置" AutomationProperties.Name="账户设置"><FontIcon Glyph="&#xE713;" FontSize="17"/></Button></Grid>
-    <Grid Grid.Row="1" RowSpacing="8" ColumnSpacing="8">
+    <TextBox x:Name="Search" Grid.Row="1" PlaceholderText="搜索任务" TextChanged="Search_Changed" BorderThickness="0" Background="{ThemeResource CardBrush}" CornerRadius="8" Margin="4,2" AutomationProperties.Name="搜索任务"/>
+    <Grid Grid.Row="2" RowSpacing="8" ColumnSpacing="8">
      <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
      <Button x:Name="AllTile" Tag="all" Style="{StaticResource TileStyle}" Background="#203584E4" Foreground="#3584E4" Click="View_Click"><StackPanel Spacing="5"><Grid><FontIcon Glyph="&#xE8B7;" FontSize="16" HorizontalAlignment="Left"/><TextBlock x:Name="AllCount" HorizontalAlignment="Right" Text="0"/></Grid><TextBlock Text="全部任务" FontWeight="SemiBold"/></StackPanel></Button>
      <Button x:Name="TodayTile" Grid.Column="1" Tag="today" Style="{StaticResource TileStyle}" Background="#2033B879" Foreground="#27A66A" Click="View_Click"><StackPanel Spacing="5"><Grid><FontIcon Glyph="&#xE734;" FontSize="16" HorizontalAlignment="Left"/><TextBlock x:Name="TodayCount" HorizontalAlignment="Right" Text="0"/></Grid><TextBlock Text="今天" FontWeight="SemiBold"/></StackPanel></Button>
@@ -24,12 +25,12 @@
      <Button x:Name="ConflictTile" Grid.Row="2" Tag="conflicts" Style="{StaticResource TileStyle}" Background="#20E05262" Foreground="#D85363" Click="View_Click"><StackPanel Spacing="5"><Grid><FontIcon Glyph="&#xE7BA;" FontSize="16" HorizontalAlignment="Left"/><TextBlock x:Name="ConflictCount" HorizontalAlignment="Right" Text="0"/></Grid><TextBlock Text="冲突" FontWeight="SemiBold"/></StackPanel></Button>
      <Button x:Name="CompletedTile" Grid.Row="2" Grid.Column="1" Tag="completed" Style="{StaticResource TileStyle}" Background="#20E78D31" Foreground="#D28024" Click="View_Click"><StackPanel Spacing="5"><Grid><FontIcon Glyph="&#xE73E;" FontSize="16" HorizontalAlignment="Left"/><TextBlock x:Name="CompletedCount" HorizontalAlignment="Right" Text="0"/></Grid><TextBlock Text="已完成" FontWeight="SemiBold"/></StackPanel></Button>
     </Grid>
-    <StackPanel Grid.Row="2" Spacing="6" Margin="8,8,8,0"><TextBlock x:Name="AccountLabel" Text="Nextcloud" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="ConnectionLabel" Text="尚未连接 · 点击齿轮设置账户" FontSize="12" Opacity="0.6"/><Border Height="1" Background="{ThemeResource DividerBrush}" Margin="0,4,0,0"/></StackPanel>
-    <ListView x:Name="Lists" Grid.Row="3" SelectionChanged="Lists_Changed" SelectionMode="Single">
+    <StackPanel Grid.Row="3" Spacing="6" Margin="8,8,8,0"><TextBlock x:Name="AccountLabel" Text="Nextcloud" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="ConnectionLabel" Text="尚未连接 · 点击齿轮设置账户" FontSize="12" Opacity="0.6"/><Border Height="1" Background="{ThemeResource DividerBrush}" Margin="0,4,0,0"/></StackPanel>
+    <ListView x:Name="Lists" Grid.Row="4" SelectionChanged="Lists_Changed" SelectionMode="Single">
      <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="8,2"/><Setter Property="MinHeight" Value="42"/></Style></ListView.ItemContainerStyle>
      <ListView.ItemTemplate><DataTemplate><Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="○" Foreground="{Binding Color}" FontSize="25" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/><TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="12" Opacity="0.5" VerticalAlignment="Center"/></Grid></DataTemplate></ListView.ItemTemplate>
     </ListView>
-    <Button Grid.Row="4" Click="Account_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" BorderThickness="0"><StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE77B;" FontSize="15"/><TextBlock Text="账户与连接"/></StackPanel></Button>
+    <Button Grid.Row="5" Click="Account_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" BorderThickness="0"><StackPanel Orientation="Horizontal" Spacing="10"><FontIcon Glyph="&#xE77B;" FontSize="15"/><TextBlock Text="账户与连接"/></StackPanel></Button>
    </Grid>
   </Border>
   <Grid Grid.Column="1">
@@ -45,7 +46,7 @@
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="EditorColumn" Width="0"/></Grid.ColumnDefinitions>
     <Grid Padding="24,18,24,20" RowSpacing="16">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="Search" PlaceholderText="搜索当前视图" TextChanged="Search_Changed" BorderThickness="0" Background="{ThemeResource SidebarBrush}" CornerRadius="8"/><CheckBox Grid.Column="1" x:Name="ShowCompleted" Content="显示已完成" IsChecked="False" Click="ShowCompleted_Click" FontSize="12"/></Grid>
+     <Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="QuickAdd" PlaceholderText="输入任务，按 Enter 快速添加" KeyDown="QuickAdd_KeyDown" BorderThickness="0" Background="{ThemeResource SidebarBrush}" CornerRadius="8" AutomationProperties.Name="快速添加任务"/><CheckBox Grid.Column="1" x:Name="ShowCompleted" Content="显示已完成" IsChecked="False" Click="ShowCompleted_Click" FontSize="12"/></Grid>
      <Grid Grid.Row="1">
       <ListView x:Name="Tasks" SelectionChanged="Task_Changed" SelectionMode="Single">
        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,0,5"/></Style></ListView.ItemContainerStyle>
@@ -65,6 +66,10 @@
       <ComboBox x:Name="Destination" Header="任务列表" DisplayMemberPath="Name" HorizontalAlignment="Stretch"/>
       <TextBox x:Name="TaskTitle" Header="标题" TextWrapping="Wrap"/>
       <TextBox x:Name="TaskNotes" Header="备注" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="170"/>
+      <CheckBox x:Name="HasDueDate" Content="设置截止日期" Click="HasDueDate_Click"/>
+      <DatePicker x:Name="DueDate" Header="截止日期" Visibility="Collapsed"/>
+      <CheckBox x:Name="HasReminder" Content="设置提醒" Click="HasReminder_Click"/>
+      <StackPanel x:Name="ReminderControls" Spacing="8" Visibility="Collapsed"><DatePicker x:Name="ReminderDate" Header="提醒日期"/><TimePicker x:Name="ReminderTime" Header="提醒时间" ClockIdentifier="24HourClock"/></StackPanel>
       <CheckBox x:Name="Done" Content="已完成"/>
       <TextBlock x:Name="TaskInfo" TextWrapping="Wrap" FontSize="12" Opacity="0.65"/>
       <Button x:Name="SaveButton" Content="保存任务" Click="Save_Click" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"/>

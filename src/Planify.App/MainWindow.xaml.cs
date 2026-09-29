@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Input;
 using Planify.Core;
 using System.Security.Cryptography;
 using System.Text;
@@ -36,11 +37,15 @@ public sealed partial class MainWindow : Window
     private bool busy, initialized, refreshing, editorOpen, accountDialogOpen, closed, restoreAttempted;
     private TaskEntry? selected;
     private string view = "all", baselineTitle = "", baselineNotes = "";
-    private bool baselineDone;
+    private bool baselineDone, baselineHasDue, baselineHasReminder;
+    private DateOnly? baselineDue;
+    private DateTimeOffset? baselineReminder;
     private string? currentListUrl;
     private List<TaskList> taskLists = [];
     private sealed record Account(string Server, string User);
-    private bool HasDraft => editorOpen && (TaskTitle.Text != baselineTitle || TaskNotes.Text != baselineNotes || (Done.IsChecked == true) != baselineDone);
+    private DateOnly? CurrentDue => HasDueDate.IsChecked == true ? DateOnly.FromDateTime(DueDate.Date.DateTime) : null;
+    private DateTimeOffset? CurrentReminder => HasReminder.IsChecked == true ? new DateTimeOffset(ReminderDate.Date.DateTime.Date + ReminderTime.Time) : null;
+    private bool HasDraft => editorOpen && (TaskTitle.Text != baselineTitle || TaskNotes.Text != baselineNotes || (Done.IsChecked == true) != baselineDone || (HasDueDate.IsChecked == true) != baselineHasDue || CurrentDue != baselineDue || (HasReminder.IsChecked == true) != baselineHasReminder || CurrentReminder != baselineReminder);
     public MainWindow()
     {
         InitializeComponent();
@@ -155,9 +160,10 @@ public sealed partial class MainWindow : Window
     private void SetBusy(bool value)
     {
         busy = value; Progress.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
-        Lists.IsEnabled = Tasks.IsEnabled = Search.IsEnabled = ShowCompleted.IsEnabled = !value;
+        Lists.IsEnabled = Tasks.IsEnabled = Search.IsEnabled = QuickAdd.IsEnabled = ShowCompleted.IsEnabled = !value;
         foreach (var tile in new[] { AllTile, TodayTile, ScheduledTile, PendingTile, ConflictTile, CompletedTile }) tile.IsEnabled = !value;
-        TaskTitle.IsEnabled = TaskNotes.IsEnabled = Done.IsEnabled = Destination.IsEnabled = !value;
+        TaskTitle.IsEnabled = TaskNotes.IsEnabled = Done.IsEnabled = Destination.IsEnabled = DueDate.IsEnabled = HasDueDate.IsEnabled = HasReminder.IsEnabled = !value;
+        ReminderDate.IsEnabled = ReminderTime.IsEnabled = !value;
         SyncButton.IsEnabled = !value && client != null;
         CurrentSyncButton.IsEnabled = !value && client != null && currentListUrl != null;
         SaveButton.IsEnabled = DeleteButton.IsEnabled = ResolveButton.IsEnabled = AddButton.IsEnabled = !value;
@@ -296,16 +302,25 @@ public sealed partial class MainWindow : Window
     {
         selected = task; editorOpen = true;
         TaskTitle.Text = baselineTitle = task?.Title ?? ""; TaskNotes.Text = baselineNotes = task?.Details ?? ""; Done.IsChecked = baselineDone = task?.Completed ?? false;
+        var calendar = task == null ? null : CalendarDocument.Parse(task.CalendarData);
+        var due = calendar?.DueDate(); HasDueDate.IsChecked = baselineHasDue = due != null; baselineDue = due;
+        DueDate.Date = (due?.ToDateTime(TimeOnly.MinValue) ?? DateTime.Today).Date;
+        var reminder = calendar?.ReminderAt(); HasReminder.IsChecked = baselineHasReminder = reminder != null; baselineReminder = reminder;
+        var reminderSeed = reminder?.LocalDateTime ?? due?.ToDateTime(TimeOnly.MinValue) ?? DateTime.Today.AddHours(9);
+        ReminderDate.Date = reminderSeed.Date; ReminderTime.Time = reminderSeed.TimeOfDay;
+        DueDate.Visibility = HasDueDate.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        ReminderControls.Visibility = HasReminder.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         Destination.ItemsSource = taskLists;
         Destination.SelectedItem = taskLists.FirstOrDefault(l => l.Url == (task?.ListUrl ?? currentListUrl)) ?? taskLists.FirstOrDefault();
         EditorHeading.Text = task == null ? "新建任务" : "任务详情";
-        TaskInfo.Text = task?.Conflict ?? (task?.ReadOnly == true ? "重复或协作任务暂时只读，请在 Apple 提醒事项中编辑。" : task?.Pending == "delete" ? "此任务将在下次同步时删除。" : task != null && TaskViews.DueDay(task) is { } day ? "截止日期 · " + day.ToString("yyyy/MM/dd") : "保存后，点击同步所有列表上传修改。");
+        TaskInfo.Text = task?.Conflict ?? (task?.ReadOnly == true ? "重复或协作任务暂时只读，请在 Apple 提醒事项中编辑。" : task?.Pending == "delete" ? "此任务将在下次同步时删除。" : "截止日期与提醒会写入 CalDAV；保存后需同步到其他设备。" + (calendar?.HasAlarm == true && reminder == null ? " 原有相对提醒会保留，设置新提醒可替换一个提醒。" : ""));
         EditorPanel.Visibility = Visibility.Visible; UpdateEditorWidth(); UpdateEditorControls();
     }
     private void UpdateEditorControls()
     {
         bool editable = !busy && selected?.ReadOnly != true && selected?.Conflict == null && selected?.Pending != "delete";
-        TaskTitle.IsReadOnly = TaskNotes.IsReadOnly = !editable; Done.IsEnabled = editable;
+        TaskTitle.IsReadOnly = TaskNotes.IsReadOnly = !editable; Done.IsEnabled = HasDueDate.IsEnabled = DueDate.IsEnabled = HasReminder.IsEnabled = editable;
+        ReminderDate.IsEnabled = ReminderTime.IsEnabled = editable;
         Destination.IsEnabled = !busy && selected == null;
         SaveButton.IsEnabled = engine != null && taskLists.Count > 0 && editable;
         DeleteButton.Visibility = selected == null ? Visibility.Collapsed : Visibility.Visible;
@@ -316,6 +331,29 @@ public sealed partial class MainWindow : Window
     private void UpdateEditorWidth() => EditorColumn.Width = new GridLength(editorOpen ? Math.Min(340, Math.Max(280, Root.ActualWidth * 0.28)) : 0);
     private void HideEditor() { editorOpen = false; selected = null; EditorPanel.Visibility = Visibility.Collapsed; EditorColumn.Width = new GridLength(0); }
     private void New_Click(object sender, RoutedEventArgs e) { if (busy || !CanNavigate()) return; OpenEditor(null); TaskTitle.Focus(FocusState.Programmatic); }
+    private void QuickAdd_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        e.Handled = true;
+        if (busy || engine == null || string.IsNullOrWhiteSpace(QuickAdd.Text)) return;
+        var list = taskLists.FirstOrDefault(l => l.Url == currentListUrl) ?? taskLists.FirstOrDefault();
+        if (list == null) { Status.Text = "请先连接 Nextcloud 并同步任务列表。"; return; }
+        try
+        {
+            engine.Add(list, QuickAdd.Text, ""); QuickAdd.Text = ""; Status.Text = $"已添加到“{list.Name}” · 等待同步。"; Refresh();
+        }
+        catch (Exception ex) { Status.Text = "未能添加任务：" + ex.Message; }
+    }
+    private void HasDueDate_Click(object sender, RoutedEventArgs e) => DueDate.Visibility = HasDueDate.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    private void HasReminder_Click(object sender, RoutedEventArgs e)
+    {
+        ReminderControls.Visibility = HasReminder.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (HasReminder.IsChecked == true && baselineReminder == null)
+        {
+            ReminderDate.Date = CurrentDue?.ToDateTime(TimeOnly.MinValue) ?? DateTime.Today;
+            ReminderTime.Time = TimeSpan.FromHours(9);
+        }
+    }
     private async void CloseEditor_Click(object sender, RoutedEventArgs e)
     {
         if (busy) return;
@@ -327,8 +365,10 @@ public sealed partial class MainWindow : Window
         if (busy || engine == null || Destination.SelectedItem is not TaskList list) return;
         try
         {
-            if (selected == null) { engine.Add(list, TaskTitle.Text, TaskNotes.Text); selected = engine.Tasks.Last(); if (Done.IsChecked == true) engine.Edit(selected, TaskTitle.Text, TaskNotes.Text, true); }
-            else engine.Edit(selected, TaskTitle.Text, TaskNotes.Text, Done.IsChecked == true);
+            if (selected == null) { engine.Add(list, TaskTitle.Text, TaskNotes.Text); selected = engine.Tasks.Last(); }
+            bool updateDue = selected.ETag == null || (HasDueDate.IsChecked == true) != baselineHasDue || CurrentDue != baselineDue;
+            bool updateReminder = selected.ETag == null || (HasReminder.IsChecked == true) != baselineHasReminder || CurrentReminder != baselineReminder;
+            engine.Edit(selected, TaskTitle.Text, TaskNotes.Text, Done.IsChecked == true, updateDue, CurrentDue, updateReminder, CurrentReminder);
             Status.Text = "已保存 · 点击“同步所有列表”上传到 Nextcloud。"; OpenEditor(selected); Refresh();
         }
         catch (Exception ex) { Status.Text = ex.Message; }
