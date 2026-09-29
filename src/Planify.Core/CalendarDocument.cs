@@ -81,7 +81,7 @@ public sealed class CalendarDocument
     private void SetDue(DateOnly? dueDate)
     {
         var indexes = Properties().Where(i => Name(lines[i]) == "DUE").ToArray();
-        if (dueDate == null) { foreach (var i in indexes.Reverse()) lines.RemoveAt(i); return; }
+        if (dueDate == null) { foreach (var i in indexes.OrderByDescending(i => i)) lines.RemoveAt(i); return; }
         var formatted = dueDate.Value.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
         if (indexes.Length == 0) { lines.Insert(lines.IndexOf("END:VTODO"), "DUE;VALUE=DATE:" + formatted); return; }
         int index = indexes[0]; string old = lines[index]; string value = old.Split(':', 2)[1];
