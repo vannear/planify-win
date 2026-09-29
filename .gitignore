@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+publish/
+artifacts/
+*.db
+*.db-shm
+*.db-wal
+*.pdb
+.vs/
+.env
+*.user

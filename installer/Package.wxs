@@ -1,0 +1,33 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Planify Windows Community" Manufacturer="Planify Windows Community contributors"
+           Version="$(var.Version)" UpgradeCode="28D0AF35-3584-428E-932E-B2D2BF9A62D8"
+           Scope="perUser" Compressed="yes" Language="1033">
+    <SummaryInformation Description="Planify Windows Community - Nextcloud and CalDAV tasks" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Planify Windows Community is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Launch Condition="Installed OR (VersionNT64 AND WindowsBuild &gt;= 17763)" Message="Windows 10 version 1809 or newer (x64) is required." />
+    <Icon Id="PlanifyIcon" SourceFile="$(var.PublishDir)\Assets\planify.ico" />
+    <Property Id="ARPPRODUCTICON" Value="PlanifyIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/vannear/planify-win" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Planify Windows Community" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppStartMenu" Name="Planify Windows Community">
+        <Component Id="StartMenuComponent" Guid="458C12DF-84CB-4F7D-BF47-F011FC00CD92">
+          <Shortcut Id="StartMenuShortcut" Name="Planify Windows Community" Target="[INSTALLFOLDER]Planify.App.exe" WorkingDirectory="INSTALLFOLDER" Icon="PlanifyIcon" />
+          <RemoveFolder Id="RemoveStartMenu" On="uninstall" />
+          <RegistryValue Root="HKCU" Key="Software\PlanifyWindowsCommunity\Installer" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="MainFeature" Title="Planify Windows Community" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuComponent" />
+    </Feature>
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+  </Package>
+</Wix>

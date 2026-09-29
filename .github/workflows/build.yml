@@ -1,0 +1,32 @@
+name: Windows build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Run regression checks
+        run: dotnet run --project tests/Planify.Tests/Planify.Tests.csproj
+      - name: Publish Windows x64
+        run: dotnet publish src/Planify.App/Planify.App.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
+      - name: Include notices
+        run: ./installer/Copy-Notices.ps1 -PublishDir artifacts/publish
+      - name: Install WiX build tools
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add --global WixToolset.UI.wixext/5.0.2
+      - name: Build MSI
+        run: ./installer/Build-Installer.ps1 -PublishDir artifacts/publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Planify-Windows-x64
+          path: artifacts/*.msi
