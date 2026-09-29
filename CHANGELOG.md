@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Fix a .NET 8 SDK compiler compatibility issue in the clear-deadline path found by GitHub Actions.
+
 ## 0.5.0
 
 - Replace the list-top search box with quick task entry; press Enter to add to the selected list, or the first list from All Tasks.
