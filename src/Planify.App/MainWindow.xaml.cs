@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Planify.Core;
 using System.Security.Cryptography;
 using System.Text;
+using WinRT.Interop;
 
 namespace Planify.App;
 
@@ -30,6 +31,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly LocalStore store;
     private readonly ICredentialStore credentials = new WindowsCredentialStore();
+    private readonly WindowTrayIcon tray;
     private LoginAccount? connectedAccount;
     private SyncEngine? engine;
     private CalDavClient? client;
@@ -51,6 +53,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "planify.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 820));
+        tray = new WindowTrayIcon(WindowNative.GetWindowHandle(this), Path.Combine(AppContext.BaseDirectory, "Assets", "planify.ico"), Activate, Close);
         string dataDirectory = Environment.GetEnvironmentVariable("PLANIFY_DATA_DIR") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PlanifyWindowsCommunity");
         store = new LocalStore(Path.Combine(dataDirectory, "tasks.db"));
         initialized = true;
@@ -63,7 +66,7 @@ public sealed partial class MainWindow : Window
         Refresh();
         Root.SizeChanged += (_, _) => UpdateEditorWidth();
         Root.Loaded += RestoreConnection;
-        Closed += (_, _) => { closed = true; client?.Dispose(); store.Dispose(); };
+        Closed += (_, _) => { closed = true; tray.Dispose(); client?.Dispose(); store.Dispose(); };
     }
     private LoginAccount DialogAccount() => new(Server.Text.Trim(), Username.Text.Trim());
     private void CredentialAccount_Changed(object sender, TextChangedEventArgs e)
