@@ -12,6 +12,8 @@ internal sealed class WindowTrayIcon : IDisposable
     private const uint WmLButtonUp = 0x0202;
     private const uint WmLButtonDoubleClick = 0x0203;
     private const uint WmRButtonUp = 0x0205;
+    private const uint NinSelect = 0x0400;
+    private const uint NinKeySelect = 0x0401;
     private const uint NimAdd = 0;
     private const uint NimDelete = 2;
     private const uint NimSetVersion = 4;
@@ -86,8 +88,9 @@ internal sealed class WindowTrayIcon : IDisposable
 
         if (message == TrayCallback)
         {
-            uint notification = unchecked((uint)lParam.ToInt64());
-            if (notification is WmLButtonUp or WmLButtonDoubleClick)
+            // With NOTIFYICON_VERSION_4, the event is in LOWORD(lParam).
+            uint notification = unchecked((uint)lParam.ToInt64()) & 0xffff;
+            if (notification is WmLButtonUp or WmLButtonDoubleClick or NinSelect or NinKeySelect)
                 restore();
             else if (notification is WmRButtonUp or WmContextMenu)
                 ShowContextMenu();
