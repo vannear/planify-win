@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- Keep Planify running in the Windows notification area when the main window is closed.
+- Add a notification-area menu to reopen Planify or exit the application.
+
 ## 0.5.2
 
 - Fix MSI OS build detection on Windows 11 and Windows 11 IoT Enterprise LTSC by reading the current build number directly from the registry.
