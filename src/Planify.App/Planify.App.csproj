@@ -6,7 +6,7 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier><PlatformTarget>x64</PlatformTarget>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <Product>Planify Windows Community</Product>
     <Description>Unofficial Windows task manager for Nextcloud and CalDAV</Description>
     <ApplicationIcon>Assets\planify.ico</ApplicationIcon>
