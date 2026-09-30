@@ -5,7 +5,10 @@
     <SummaryInformation Description="Planify Windows Community - Nextcloud and CalDAV tasks" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Planify Windows Community is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
-    <Launch Condition="Installed OR (VersionNT64 AND WindowsBuild &gt;= 17763)" Message="Windows 10 version 1809 or newer (x64) is required." />
+    <Property Id="PLANIFYWINDOWSBUILD">
+      <RegistrySearch Id="PlanifyWindowsBuildSearch" Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" Bitness="always64" />
+    </Property>
+    <Launch Condition="Installed OR (VersionNT64 AND PLANIFYWINDOWSBUILD &gt;= 17763)" Message="Windows 10 version 1809 or newer (x64) is required." />
     <Icon Id="PlanifyIcon" SourceFile="$(var.PublishDir)\Assets\planify.ico" />
     <Property Id="ARPPRODUCTICON" Value="PlanifyIcon" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/vannear/planify-win" />
