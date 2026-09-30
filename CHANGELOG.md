@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Fix MSI OS build detection on Windows 11 and Windows 11 IoT Enterprise LTSC by reading the current build number directly from the registry.
+
 ## 0.5.1
 
 - Fix a .NET 8 SDK compiler compatibility issue in the clear-deadline path found by GitHub Actions.
