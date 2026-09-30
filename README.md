@@ -28,6 +28,7 @@ For Apple Reminders interoperability, connect both clients to the same Nextcloud
 - Preserve untouched iCalendar fields, including Apple extensions, due dates, time zones and alarms.
 - Native Windows Credential Manager integration, including password replacement and removal.
 - Sidebar task views, list counts and application icon. The current interface is Chinese.
+- Closing the main window hides Planify in the notification area; right-click the tray icon to reopen or exit.
 
 Recurring tasks, recurrence exceptions and tasks with organizers/attendees are read-only. There is no subtask creation, Windows background reminder notification, background synchronization, automatic updater, list creation or multi-account interface yet. CalDAV reminders are stored with the task; this app does not show Windows toast reminders. This is an early community release.
 
