@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4
+
+- Add a delete button to editable task rows; ask for confirmation before marking a task for deletion and synchronization.
+
 ## 0.5.3
 
 - Keep Planify running in the Windows notification area when the main window is closed.
