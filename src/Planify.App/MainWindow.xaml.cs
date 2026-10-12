@@ -22,6 +22,7 @@ public sealed class TaskRow(TaskEntry entry, string listName)
     public string Title => entry.Title;
     public string CheckGlyph => entry.Completed ? "✓" : "";
     public bool CanEdit => !entry.ReadOnly && entry.Conflict == null && entry.Pending != "delete";
+    public Visibility DeleteVisibility => CanEdit ? Visibility.Visible : Visibility.Collapsed;
     public double Opacity => entry.Completed ? 0.5 : 1;
     public string Metadata => listName + (TaskViews.DueDay(entry) is { } day ? "  ·  " + day.ToString("yyyy/MM/dd") : "") + (string.IsNullOrWhiteSpace(entry.Details) ? "" : "  ·  " + entry.Details.Replace('\n', ' '));
     public string Badge => entry.Conflict != null ? "冲突" : entry.Pending == "delete" ? "待删除" : entry.Pending != "" ? "待同步" : entry.ReadOnly ? "只读" : "";
@@ -36,7 +37,7 @@ public sealed partial class MainWindow : Window
     private SyncEngine? engine;
     private CalDavClient? client;
     private string accountKey = "";
-    private bool busy, initialized, refreshing, editorOpen, accountDialogOpen, closed, restoreAttempted;
+    private bool busy, initialized, refreshing, editorOpen, accountDialogOpen, deleteDialogOpen, closed, restoreAttempted;
     private TaskEntry? selected;
     private string view = "all", baselineTitle = "", baselineNotes = "";
     private bool baselineDone, baselineHasDue, baselineHasReminder;
@@ -382,13 +383,34 @@ public sealed partial class MainWindow : Window
         try { engine.Edit(task, task.Title, task.Details, !task.Completed); if (selected == task) OpenEditor(task); Status.Text = "完成状态已保存在本机 · 等待同步。"; Refresh(); }
         catch (Exception ex) { Status.Text = ex.Message; }
     }
-    private async Task<bool> Confirm(string title, string message) => await new ContentDialog { XamlRoot = Root.XamlRoot, Title = title, Content = message, PrimaryButtonText = "确认", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close }.ShowAsync() == ContentDialogResult.Primary;
+    private async Task<bool> Confirm(string title, string message, string primaryText = "确认") => await new ContentDialog { XamlRoot = Root.XamlRoot, Title = title, Content = message, PrimaryButtonText = primaryText, CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close }.ShowAsync() == ContentDialogResult.Primary;
     private async void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (busy || selected == null || engine == null) return;
-        var task = selected;
-        if (await Confirm("删除任务？", "下次同步会从 Nextcloud 删除此任务，Apple 提醒事项也会同步删除。"))
-        { try { engine.Delete(task); HideEditor(); Status.Text = "已标记删除，等待同步。"; Refresh(); } catch (Exception ex) { Status.Text = ex.Message; } }
+        await DeleteTask(selected);
+    }
+    private async void TaskRowDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || engine == null || sender is not Button { Tag: TaskEntry task }) return;
+        if (!CanNavigate()) { Refresh(); return; }
+        Tasks.SelectedItem = null;
+        HideEditor();
+        await DeleteTask(task);
+    }
+    private async Task DeleteTask(TaskEntry task)
+    {
+        if (busy || deleteDialogOpen || engine == null || task.ReadOnly || task.Conflict != null || task.Pending == "delete") return;
+        deleteDialogOpen = true;
+        try
+        {
+            if (!await Confirm("删除任务？", "下次同步会从 Nextcloud 删除此任务，Apple 提醒事项也会同步删除。", "删除")) return;
+            engine.Delete(task);
+            if (selected?.Url == task.Url) HideEditor();
+            Status.Text = "已标记删除，等待同步。";
+            Refresh();
+        }
+        catch (Exception ex) { Status.Text = ex.Message; }
+        finally { deleteDialogOpen = false; }
     }
     private async void Resolve_Click(object sender, RoutedEventArgs e)
     {
