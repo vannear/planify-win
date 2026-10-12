@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$PublishDir,
     [string]$OutputDir = "$PSScriptRoot\..\artifacts",
-    [string]$Version = '0.5.3',
+    [string]$Version = '0.5.4',
     [string]$WixExe = 'wix',
     [string]$WixUI = 'WixToolset.UI.wixext'
 )
