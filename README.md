@@ -20,6 +20,7 @@ For Apple Reminders interoperability, connect both clients to the same Nextcloud
 ## Features and limitations
 
 - Discover CalDAV task lists and synchronize all lists in one action.
+- Create, rename and delete task lists from the sidebar. Deleting a list removes its tasks from Nextcloud and all synced devices; pending edits and conflicts must be resolved first.
 - Create, edit, complete, reopen and delete ordinary tasks; edit titles and notes.
 - Quick-add tasks from the list header with Enter; search from the left sidebar.
 - Set or clear due dates and set a display reminder date and time.
@@ -30,7 +31,7 @@ For Apple Reminders interoperability, connect both clients to the same Nextcloud
 - Sidebar task views, list counts and application icon. The current interface is Chinese.
 - Closing the main window hides Planify in the notification area; right-click the tray icon to reopen or exit.
 
-Recurring tasks, recurrence exceptions and tasks with organizers/attendees are read-only. There is no subtask creation, Windows background reminder notification, background synchronization, automatic updater, list creation or multi-account interface yet. CalDAV reminders are stored with the task; this app does not show Windows toast reminders. This is an early community release.
+Recurring tasks, recurrence exceptions and tasks with organizers/attendees are read-only. There is no subtask creation, Windows background reminder notification, background synchronization, automatic updater or multi-account interface yet. CalDAV reminders are stored with the task; this app does not show Windows toast reminders. This is an early community release.
 
 Task content is stored in ordinary SQLite at `%LOCALAPPDATA%\PlanifyWindowsCommunity\tasks.db`; it is not encrypted by this app. Exit the app before backing up that directory. Passwords are stored separately by Windows Credential Manager for the current Windows user on this machine. Uninstalling preserves task data and saved credentials. Use “forget saved password” inside the app before uninstalling if you want to remove its saved credential.
 
