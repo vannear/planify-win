@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.6
+
+- Add a large plus button below the sidebar task lists and list management actions to right-click menus.
+- Replace each list's three-dot menu with a drag grip and save custom list order across reconnects and syncs.
+- Explain why list creation cannot proceed and show server errors instead of leaving the user without visible feedback; select a new list after successful creation.
+
 ## 0.5.5
 
 - Add task-list creation, renaming, and deletion from the sidebar.

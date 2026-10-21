@@ -106,8 +106,16 @@ public sealed partial class MainWindow : Window
     }
     private void AcceptConnection(LoginAccount account, CalDavClient candidate, List<TaskList> discovered)
     {
-        client?.Dispose(); client = candidate; connectedAccount = account; LoadAccount(); taskLists = discovered;
+        client?.Dispose(); client = candidate; connectedAccount = account; LoadAccount(); UpdateDiscoveredLists(discovered);
         store.Write("last-account", new Account(account.Server, account.User)); store.Write(accountKey + ":lists", taskLists);
+    }
+    private void UpdateDiscoveredLists(List<TaskList> discovered)
+    {
+        var byUrl = discovered.ToDictionary(list => list.Url, StringComparer.Ordinal);
+        var merged = taskLists.Where(list => byUrl.ContainsKey(list.Url)).Select(list => byUrl[list.Url]).ToList();
+        var existing = merged.Select(list => list.Url).ToHashSet(StringComparer.Ordinal);
+        merged.AddRange(discovered.Where(list => existing.Add(list.Url)));
+        taskLists = merged;
     }
     private async void RestoreConnection(object sender, RoutedEventArgs e)
     {
@@ -166,7 +174,7 @@ public sealed partial class MainWindow : Window
     {
         busy = value; Progress.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
         Lists.IsEnabled = Tasks.IsEnabled = Search.IsEnabled = QuickAdd.IsEnabled = ShowCompleted.IsEnabled = !value;
-        AddListButton.IsEnabled = !value && client != null;
+        AddListButton.IsEnabled = !value;
         foreach (var tile in new[] { AllTile, TodayTile, ScheduledTile, PendingTile, ConflictTile, CompletedTile }) tile.IsEnabled = !value;
         TaskTitle.IsEnabled = TaskNotes.IsEnabled = Done.IsEnabled = Destination.IsEnabled = DueDate.IsEnabled = HasDueDate.IsEnabled = HasReminder.IsEnabled = !value;
         ReminderDate.IsEnabled = ReminderTime.IsEnabled = !value;
@@ -230,7 +238,7 @@ public sealed partial class MainWindow : Window
     {
         if (client == null || engine == null) return;
         Status.Text = "正在刷新任务列表…";
-        taskLists = await client.Discover(); store.Write(accountKey + ":lists", taskLists);
+        UpdateDiscoveredLists(await client.Discover()); store.Write(accountKey + ":lists", taskLists);
         if (currentListUrl != null && !taskLists.Any(l => l.Url == currentListUrl)) { currentListUrl = null; view = "all"; }
         var result = await engine.SyncAll(client, taskLists, progress => Status.Text = $"正在同步 {progress.Current}/{progress.Total} · {progress.Name}");
         Status.Text = result.Total == 0 ? "账户中没有可同步的任务列表。" : $"已同步 {result.Succeeded}/{result.Total} 个列表 · {DateTime.Now:HH:mm:ss}" + (result.Conflicts > 0 ? $" · {result.Conflicts} 项冲突" : "");
@@ -280,7 +288,7 @@ public sealed partial class MainWindow : Window
             ShowCompleted.Visibility = view == "all" ? Visibility.Visible : Visibility.Collapsed;
             SyncButton.IsEnabled = client != null && !busy;
             CurrentSyncButton.IsEnabled = client != null && currentListUrl != null && !busy;
-            AddListButton.IsEnabled = client != null && !busy;
+            AddListButton.IsEnabled = !busy;
             AddButton.IsEnabled = engine != null && taskLists.Count > 0 && !busy;
             UpdateEditorControls();
         }
@@ -292,18 +300,70 @@ public sealed partial class MainWindow : Window
         if (!CanNavigate()) { Refresh(); return; }
         HideEditor(); currentListUrl = list.Model.Url; view = "all"; Search.Text = ""; Refresh();
     }
+    private void Lists_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs e)
+    {
+        if (busy || Lists.ItemsSource is not IEnumerable<SidebarList> ordered) return;
+        taskLists = ordered.Select(item => item.Model).ToList();
+        store.Write(accountKey + ":lists", taskLists);
+        Status.Text = "列表顺序已保存。";
+        Refresh();
+    }
+    private void Lists_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        if (sender is FrameworkElement target) ShowListContextMenu(target, Lists.SelectedItem as SidebarList, e);
+    }
+    private void ListRow_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: SidebarList list }) return;
+        ShowListContextMenu((FrameworkElement)sender, list, e);
+    }
+    private void ShowListContextMenu(FrameworkElement target, SidebarList? list, ContextRequestedEventArgs e)
+    {
+        var menu = new MenuFlyout();
+        var add = new MenuFlyoutItem { Text = "添加任务列表", Icon = new FontIcon { Glyph = "\uE710" } };
+        add.Click += AddList_Click;
+        menu.Items.Add(add);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        var rename = new MenuFlyoutItem { Text = "重命名列表", Icon = new FontIcon { Glyph = "\uE8AC" }, IsEnabled = list != null && client != null };
+        var delete = new MenuFlyoutItem { Text = "删除列表…", Icon = new FontIcon { Glyph = "\uE74D" }, IsEnabled = list != null && client != null };
+        if (list != null) { rename.Tag = list.Model; delete.Tag = list.Model; }
+        rename.Click += RenameList_Click; delete.Click += DeleteList_Click;
+        menu.Items.Add(rename); menu.Items.Add(delete);
+        if (e.TryGetPosition(target, out var point)) menu.ShowAt(target, point); else menu.ShowAt(target);
+        e.Handled = true;
+    }
     private async void AddList_Click(object sender, RoutedEventArgs e)
     {
-        if (busy || client == null || !CanNavigate()) return;
+        if (busy) return;
+        if (client == null)
+        {
+            var result = await new ContentDialog { XamlRoot = Root.XamlRoot, Title = "尚未连接 Nextcloud", Content = "请先连接 Nextcloud，才能在服务器上创建任务列表。", PrimaryButtonText = "打开账户设置", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary }.ShowAsync();
+            if (result == ContentDialogResult.Primary) Account_Click(this, new RoutedEventArgs());
+            return;
+        }
+        if (!CanNavigate()) return;
         var name = new TextBox { Header = "列表名称", PlaceholderText = "例如：工作、购物", MinWidth = 360 };
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "添加任务列表", Content = name, PrimaryButtonText = "创建列表", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (string.IsNullOrWhiteSpace(name.Text))
+        {
+            await new ContentDialog { XamlRoot = Root.XamlRoot, Title = "列表名称不能为空", Content = "请输入任务列表名称后再创建。", CloseButtonText = "知道了" }.ShowAsync();
+            return;
+        }
+        Exception? failure = null;
         await Run(async () =>
         {
+            try
+            {
             var list = await client.CreateList(name.Text);
             taskLists.Add(list); store.Write(accountKey + ":lists", taskLists);
+            currentListUrl = list.Url; view = "all"; Search.Text = ""; HideEditor();
             Status.Text = $"已创建列表“{list.Name}”。可开始添加任务并同步。";
+            }
+            catch (Exception ex) { failure = ex; throw; }
         });
+        if (failure != null)
+            await new ContentDialog { XamlRoot = Root.XamlRoot, Title = "未能创建任务列表", Content = new ScrollViewer { MaxHeight = 300, Content = new TextBlock { Text = failure.Message, TextWrapping = TextWrapping.Wrap } }, CloseButtonText = "知道了" }.ShowAsync();
     }
     private async void RenameList_Click(object sender, RoutedEventArgs e)
     {
