@@ -9,11 +9,12 @@ using WinRT.Interop;
 
 namespace Planify.App;
 
-public sealed class SidebarList(TaskList model, int count, string color)
+public sealed class SidebarList(TaskList model, int count, string color, bool canManage)
 {
     public TaskList Model => model;
     public string Name => model.Name;
     public int Count => count;
+    public bool CanManage => canManage;
     public SolidColorBrush Color => new(Windows.UI.Color.FromArgb(255, Convert.ToByte(color[..2], 16), Convert.ToByte(color[2..4], 16), Convert.ToByte(color[4..], 16)));
 }
 public sealed class TaskRow(TaskEntry entry, string listName)
@@ -165,6 +166,7 @@ public sealed partial class MainWindow : Window
     {
         busy = value; Progress.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
         Lists.IsEnabled = Tasks.IsEnabled = Search.IsEnabled = QuickAdd.IsEnabled = ShowCompleted.IsEnabled = !value;
+        AddListButton.IsEnabled = !value && client != null;
         foreach (var tile in new[] { AllTile, TodayTile, ScheduledTile, PendingTile, ConflictTile, CompletedTile }) tile.IsEnabled = !value;
         TaskTitle.IsEnabled = TaskNotes.IsEnabled = Done.IsEnabled = Destination.IsEnabled = DueDate.IsEnabled = HasDueDate.IsEnabled = HasReminder.IsEnabled = !value;
         ReminderDate.IsEnabled = ReminderTime.IsEnabled = !value;
@@ -254,7 +256,7 @@ public sealed partial class MainWindow : Window
             var all = engine?.Tasks ?? [];
             var today = DateOnly.FromDateTime(DateTime.Now);
             string[] colors = ["3584E4", "27A66A", "A267CB", "D28024", "D85363", "28A6B5"];
-            Lists.ItemsSource = taskLists.Select((list, i) => new SidebarList(list, all.Count(t => t.ListUrl == list.Url && !t.Completed && t.Pending != "delete"), colors[i % colors.Length])).ToList();
+            Lists.ItemsSource = taskLists.Select((list, i) => new SidebarList(list, all.Count(t => t.ListUrl == list.Url && !t.Completed && t.Pending != "delete"), colors[i % colors.Length], client != null && !busy)).ToList();
             Lists.SelectedItem = Lists.Items.Cast<SidebarList>().FirstOrDefault(l => l.Model.Url == currentListUrl);
             var shown = all.Where(t => (currentListUrl == null || t.ListUrl == currentListUrl) && TaskViews.Matches(t, view, today));
             if (view == "all" && ShowCompleted.IsChecked != true) shown = shown.Where(t => !t.Completed);
@@ -278,6 +280,7 @@ public sealed partial class MainWindow : Window
             ShowCompleted.Visibility = view == "all" ? Visibility.Visible : Visibility.Collapsed;
             SyncButton.IsEnabled = client != null && !busy;
             CurrentSyncButton.IsEnabled = client != null && currentListUrl != null && !busy;
+            AddListButton.IsEnabled = client != null && !busy;
             AddButton.IsEnabled = engine != null && taskLists.Count > 0 && !busy;
             UpdateEditorControls();
         }
@@ -288,6 +291,47 @@ public sealed partial class MainWindow : Window
         if (!initialized || refreshing || busy || Lists.SelectedItem is not SidebarList list) return;
         if (!CanNavigate()) { Refresh(); return; }
         HideEditor(); currentListUrl = list.Model.Url; view = "all"; Search.Text = ""; Refresh();
+    }
+    private async void AddList_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || client == null || !CanNavigate()) return;
+        var name = new TextBox { Header = "列表名称", PlaceholderText = "例如：工作、购物", MinWidth = 360 };
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "添加任务列表", Content = name, PrimaryButtonText = "创建列表", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await Run(async () =>
+        {
+            var list = await client.CreateList(name.Text);
+            taskLists.Add(list); store.Write(accountKey + ":lists", taskLists);
+            Status.Text = $"已创建列表“{list.Name}”。可开始添加任务并同步。";
+        });
+    }
+    private async void RenameList_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || client == null || !CanNavigate() || sender is not MenuFlyoutItem { Tag: TaskList list }) return;
+        var name = new TextBox { Header = "列表名称", Text = list.Name, MinWidth = 360 };
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "重命名任务列表", Content = name, PrimaryButtonText = "保存名称", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text) || name.Text.Trim() == list.Name) return;
+        await Run(async () =>
+        {
+            var renamed = await client.RenameList(list, name.Text);
+            taskLists[taskLists.FindIndex(l => l.Url == list.Url)] = renamed; store.Write(accountKey + ":lists", taskLists);
+            Status.Text = $"列表已重命名为“{renamed.Name}”。";
+        });
+    }
+    private async void DeleteList_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || client == null || engine == null || !CanNavigate() || sender is not MenuFlyoutItem { Tag: TaskList list }) return;
+        if (engine.HasUnsyncedTasks(list.Url))
+        { Status.Text = $"“{list.Name}”中仍有待同步修改或冲突。请先解决并同步，再删除列表。"; return; }
+        if (!await Confirm("删除整个任务列表？", $"这会从 Nextcloud 删除“{list.Name}”及其中全部任务，并同步影响 Apple 提醒事项等其他设备。此操作无法在 Planify 中撤销。", "删除列表")) return;
+        await Run(async () =>
+        {
+            await client.DeleteList(list);
+            engine.RemoveListTasks(list.Url);
+            taskLists.RemoveAll(l => l.Url == list.Url); store.Write(accountKey + ":lists", taskLists);
+            if (currentListUrl == list.Url) { currentListUrl = null; view = "all"; }
+            HideEditor(); Status.Text = $"已删除列表“{list.Name}”及其任务。";
+        });
     }
     private void View_Click(object sender, RoutedEventArgs e)
     {
