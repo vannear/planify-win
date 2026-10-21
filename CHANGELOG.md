@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5
+
+- Add task-list creation, renaming, and deletion from the sidebar.
+- Warn that deleting a list also removes all its tasks from Nextcloud and other synced devices; block deletion while local edits or conflicts remain.
+
 ## 0.5.4
 
 - Add a delete button to editable task rows; ask for confirmation before marking a task for deletion and synchronization.
