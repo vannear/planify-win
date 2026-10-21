@@ -34,9 +34,22 @@ var fake = new FakeDav(sample);
 using var client = new CalDavClient("https://example.test/", "user", "test-secret", fake);
 var lists = await client.Discover();
 Assert(lists.Count == 1 && lists[0].Name == "Tasks", "principal and VTODO collection discovery");
+var createdList = await client.CreateList("Work & Life");
+Assert(fake.CreatedListUrl == createdList.Url && fake.LastListName == "Work & Life", "create task list with escaped display name");
+var renamedList = await client.RenameList(createdList, "Home");
+Assert(renamedList.Name == "Home" && fake.LastListName == "Home", "rename task list display name");
+await client.DeleteList(renamedList);
+Assert(fake.SawListDelete, "delete task list collection");
+try { await client.CreateList("  "); throw new Exception("blank list name accepted"); } catch (InvalidOperationException) { Assert(true, "blank task list names rejected"); }
 string dbPath = Path.Combine(Path.GetTempPath(), "planify-test-" + Guid.NewGuid(), "tasks.db");
 using var store = new LocalStore(dbPath);
 var engine = new SyncEngine(store, "test");
+Assert(!engine.HasUnsyncedTasks(lists[0].Url), "new list has no pending tasks");
+var cleanupEngine = new SyncEngine(store, "list-removal-test");
+cleanupEngine.Add(lists[0], "Pending list task", "");
+Assert(cleanupEngine.HasUnsyncedTasks(lists[0].Url), "list deletion detects unsynced tasks");
+cleanupEngine.RemoveListTasks(lists[0].Url);
+Assert(cleanupEngine.Tasks.Count == 0, "deleted collection clears its local task cache");
 await engine.Sync(client, lists[0]); Assert(engine.Tasks.Count == 1, "initial pull");
 engine.Edit(engine.Tasks[0], "Windows change", "notes", true);
 await engine.Sync(client, lists[0]); Assert(engine.Tasks[0].Pending == "" && fake.Data.Contains("Windows change"), "conditional update round-trip");
@@ -145,7 +158,7 @@ Console.WriteLine($"All {checks} checks passed.");
 sealed class FakeDav : HttpMessageHandler
 {
     public string Data, Tag = "\"1\"";
-    public int Writes; public string? LastIfMatch; public bool SawCreateGuard, Partial, CrossOrigin, LosePutResponse, RejectWrite;
+    public int Writes; public string? LastIfMatch, LastListName, CreatedListUrl; public bool SawCreateGuard, Partial, CrossOrigin, LosePutResponse, RejectWrite, SawListDelete;
     private readonly Dictionary<string, (string Data, string Tag)> extra = new();
     private bool originalExists = true;
     public FakeDav(string data) { Data = data; }
@@ -168,6 +181,19 @@ sealed class FakeDav : HttpMessageHandler
             if (Partial) root.Add(new XElement(d + "response", new XElement(d + "href", "/cal/tasks/missing.ics")));
             return Reply(HttpStatusCode.MultiStatus, root.ToString());
         }
+        if (method == "MKCALENDAR")
+        {
+            CreatedListUrl = request.RequestUri!.AbsoluteUri;
+            LastListName = XDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken)).Descendants(XName.Get("displayname", "DAV:")).Single().Value;
+            return Reply(HttpStatusCode.Created);
+        }
+        if (method == "PROPPATCH")
+        {
+            LastListName = XDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken)).Descendants(XName.Get("displayname", "DAV:")).Single().Value;
+            return Reply(HttpStatusCode.MultiStatus, "<d:multistatus xmlns:d='DAV:'><d:response><d:propstat><d:prop><d:displayname/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>");
+        }
+        if (method == "DELETE" && !path.EndsWith(".ics", StringComparison.OrdinalIgnoreCase))
+        { SawListDelete = true; return Reply(HttpStatusCode.NoContent); }
         if (method is "PUT" or "DELETE")
         {
             if (RejectWrite) return Reply(HttpStatusCode.PreconditionFailed);
