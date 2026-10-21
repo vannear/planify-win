@@ -10,6 +10,7 @@ public sealed class CalDavClient : IDisposable
     private static readonly XNamespace D = "DAV:", C = "urn:ietf:params:xml:ns:caldav";
     private readonly HttpClient client;
     private readonly Uri origin;
+    private Uri? calendarHome;
     public CalDavClient(string server, string user, string password, HttpMessageHandler? handler = null)
     {
         origin = new Uri(server.TrimEnd('/') + "/");
@@ -58,6 +59,7 @@ public sealed class CalDavClient : IDisposable
         var homeDoc = await Propfind(principalUri.AbsoluteUri, "<c:calendar-home-set/>", "0");
         string home = homeDoc.Descendants(D + "response").SelectMany(Props).Elements(C + "calendar-home-set").Elements(D + "href").Select(x => x.Value).FirstOrDefault() ?? throw new InvalidOperationException("未找到任务列表目录。");
         var homeUri = SafeUri(home, principalUri);
+        calendarHome = homeUri;
         var doc = await Propfind(homeUri.AbsoluteUri, "<d:displayname/><d:resourcetype/><c:supported-calendar-component-set/>", "1");
         var lists = new List<TaskList>();
         foreach (var item in doc.Descendants(D + "response"))
@@ -71,6 +73,46 @@ public sealed class CalDavClient : IDisposable
             lists.Add(new(SafeUri(href, homeUri).AbsoluteUri, properties.Elements(D + "displayname").FirstOrDefault()?.Value ?? "任务列表"));
         }
         return lists;
+    }
+    public async Task<TaskList> CreateList(string name)
+    {
+        if (calendarHome == null) throw new InvalidOperationException("请先连接 Nextcloud 并发现任务列表。");
+        name = ValidateListName(name);
+        var uri = new Uri(calendarHome.AbsoluteUri.TrimEnd('/') + "/planify-" + Guid.NewGuid().ToString("N") + "/");
+        string xml = new XElement(D + "mkcalendar", new XAttribute(XNamespace.Xmlns + "d", D), new XAttribute(XNamespace.Xmlns + "c", C),
+            new XElement(D + "set", new XElement(D + "prop", new XElement(D + "displayname", name), new XElement(C + "supported-calendar-component-set", new XElement(C + "comp", new XAttribute("name", "VTODO")))))).ToString(SaveOptions.DisableFormatting);
+        using var response = await Send("MKCALENDAR", uri.AbsoluteUri, xml);
+        Check(response);
+        return new(uri.AbsoluteUri, name);
+    }
+    public async Task<TaskList> RenameList(TaskList list, string name)
+    {
+        name = ValidateListName(name);
+        string xml = new XElement(D + "propertyupdate", new XAttribute(XNamespace.Xmlns + "d", D), new XElement(D + "set", new XElement(D + "prop", new XElement(D + "displayname", name)))).ToString(SaveOptions.DisableFormatting);
+        using var response = await Send("PROPPATCH", list.Url, xml);
+        await CheckPropertyUpdate(response);
+        return list with { Name = name };
+    }
+    public async Task DeleteList(TaskList list)
+    {
+        using var response = await Send("DELETE", list.Url);
+        if (response.StatusCode != HttpStatusCode.NotFound) Check(response);
+    }
+    private static string ValidateListName(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) throw new InvalidOperationException("请输入任务列表名称。");
+        if (name.Length > 120) throw new InvalidOperationException("任务列表名称不能超过 120 个字符。");
+        return name;
+    }
+    private static async Task CheckPropertyUpdate(HttpResponseMessage response)
+    {
+        Check(response);
+        if (response.StatusCode != HttpStatusCode.MultiStatus) return;
+        var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        var statuses = document.Descendants(D + "propstat").Select(x => ((string?)x.Element(D + "status"))?.Split(' ')).ToArray();
+        if (statuses.Length == 0 || statuses.Any(s => s == null || !s.Contains("200")))
+            throw new InvalidOperationException("服务器未能更新列表名称，请检查列表权限。");
     }
     public async Task<List<RemoteTask>> Fetch(string listUrl)
     {
