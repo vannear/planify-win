@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.7
+
+- Fix task-list creation by sending the MKCALENDAR request element in the CalDAV namespace required by RFC 4791.
+- Show a readable explanation from Nextcloud when list creation fails.
+
 ## 0.5.6
 
 - Add a large plus button below the sidebar task lists and list management actions to right-click menus.

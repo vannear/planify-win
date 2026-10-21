@@ -35,7 +35,11 @@ using var client = new CalDavClient("https://example.test/", "user", "test-secre
 var lists = await client.Discover();
 Assert(lists.Count == 1 && lists[0].Name == "Tasks", "principal and VTODO collection discovery");
 var createdList = await client.CreateList("Work & Life");
-Assert(fake.CreatedListUrl == createdList.Url && fake.LastListName == "Work & Life", "create task list with escaped display name");
+Assert(fake.CreatedListUrl == createdList.Url && fake.LastListName == "Work & Life" && fake.MkCalendarRootNamespace == "urn:ietf:params:xml:ns:caldav", "create task list using the CalDAV MKCALENDAR namespace");
+fake.RejectListCreate = true;
+try { await client.CreateList("Rejected"); throw new Exception("MKCALENDAR error body lost"); }
+catch (InvalidOperationException ex) { Assert(ex.Message.Contains("server rejected collection", StringComparison.OrdinalIgnoreCase), "list creation includes the server's CalDAV error detail"); }
+fake.RejectListCreate = false;
 var renamedList = await client.RenameList(createdList, "Home");
 Assert(renamedList.Name == "Home" && fake.LastListName == "Home", "rename task list display name");
 await client.DeleteList(renamedList);
@@ -158,7 +162,7 @@ Console.WriteLine($"All {checks} checks passed.");
 sealed class FakeDav : HttpMessageHandler
 {
     public string Data, Tag = "\"1\"";
-    public int Writes; public string? LastIfMatch, LastListName, CreatedListUrl; public bool SawCreateGuard, Partial, CrossOrigin, LosePutResponse, RejectWrite, SawListDelete;
+    public int Writes; public string? LastIfMatch, LastListName, CreatedListUrl, MkCalendarRootNamespace; public bool SawCreateGuard, Partial, CrossOrigin, LosePutResponse, RejectWrite, SawListDelete, RejectListCreate;
     private readonly Dictionary<string, (string Data, string Tag)> extra = new();
     private bool originalExists = true;
     public FakeDav(string data) { Data = data; }
@@ -184,7 +188,10 @@ sealed class FakeDav : HttpMessageHandler
         if (method == "MKCALENDAR")
         {
             CreatedListUrl = request.RequestUri!.AbsoluteUri;
-            LastListName = XDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken)).Descendants(XName.Get("displayname", "DAV:")).Single().Value;
+            var xml = XDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            MkCalendarRootNamespace = xml.Root!.Name.NamespaceName;
+            LastListName = xml.Descendants(XName.Get("displayname", "DAV:")).Single().Value;
+            if (RejectListCreate) return Reply(HttpStatusCode.BadRequest, "<d:error xmlns:d='DAV:'><d:exception>server rejected collection</d:exception></d:error>");
             return Reply(HttpStatusCode.Created);
         }
         if (method == "PROPPATCH")

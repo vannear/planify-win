@@ -44,6 +44,26 @@ public sealed class CalDavClient : IDisposable
         if (response.StatusCode == HttpStatusCode.Forbidden) throw new InvalidOperationException(response.Headers.Server.Any(s => s.Product?.Name.Equals("cloudflare", StringComparison.OrdinalIgnoreCase) == true) ? "请求被服务器或 Cloudflare 拒绝（403），请检查 Cloudflare 安全事件及 CalDAV 访问规则。" : "服务器拒绝访问，请检查任务列表权限。");
         response.EnsureSuccessStatusCode();
     }
+    private static async Task CheckCalendarCreation(HttpResponseMessage response)
+    {
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) { Check(response); return; }
+        if (response.IsSuccessStatusCode) return;
+        var body = await response.Content.ReadAsStringAsync();
+        var details = "";
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            try
+            {
+                var document = XDocument.Parse(body);
+                details = string.Join(" · ", document.Descendants()
+                    .Where(element => element.Name.LocalName is "exception" or "message")
+                    .Select(element => element.Value.Trim()).Where(value => value.Length > 0).Distinct());
+            }
+            catch { details = string.Join(" ", body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)); }
+            if (details.Length > 600) details = details[..600] + "…";
+        }
+        throw new InvalidOperationException($"Nextcloud 拒绝创建任务列表（HTTP {(int)response.StatusCode} {response.ReasonPhrase}）。" + (details.Length > 0 ? "服务器说明：" + details : "服务器未返回详细原因。"));
+    }
     private static IEnumerable<XElement> Props(XElement response) => response.Elements(D + "propstat").Where(p => ((string?)p.Element(D + "status"))?.Split(' ').Contains("200") == true).Elements(D + "prop");
     private async Task<XDocument> Propfind(string url, string properties, string depth)
     {
@@ -79,10 +99,10 @@ public sealed class CalDavClient : IDisposable
         if (calendarHome == null) throw new InvalidOperationException("请先连接 Nextcloud 并发现任务列表。");
         name = ValidateListName(name);
         var uri = new Uri(calendarHome.AbsoluteUri.TrimEnd('/') + "/planify-" + Guid.NewGuid().ToString("N") + "/");
-        string xml = new XElement(D + "mkcalendar", new XAttribute(XNamespace.Xmlns + "d", D), new XAttribute(XNamespace.Xmlns + "c", C),
+        string xml = new XElement(C + "mkcalendar", new XAttribute(XNamespace.Xmlns + "d", D), new XAttribute(XNamespace.Xmlns + "c", C),
             new XElement(D + "set", new XElement(D + "prop", new XElement(D + "displayname", name), new XElement(C + "supported-calendar-component-set", new XElement(C + "comp", new XAttribute("name", "VTODO")))))).ToString(SaveOptions.DisableFormatting);
         using var response = await Send("MKCALENDAR", uri.AbsoluteUri, xml);
-        Check(response);
+        await CheckCalendarCreation(response);
         return new(uri.AbsoluteUri, name);
     }
     public async Task<TaskList> RenameList(TaskList list, string name)
