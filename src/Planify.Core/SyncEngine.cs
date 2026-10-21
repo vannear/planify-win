@@ -9,6 +9,8 @@ public sealed class SyncEngine(LocalStore store, string accountKey)
     private readonly SemaphoreSlim syncGate = new(1, 1);
     public List<TaskEntry> Tasks { get; private set; } = store.Read<List<TaskEntry>>(accountKey + ":tasks") ?? [];
     public void Save() => store.Write(accountKey + ":tasks", Tasks);
+    public bool HasUnsyncedTasks(string listUrl) => Tasks.Any(t => t.ListUrl == listUrl && (t.Pending != "" || t.Conflict != null));
+    public void RemoveListTasks(string listUrl) { Tasks.RemoveAll(t => t.ListUrl == listUrl); Save(); }
     public void Add(TaskList list, string title, string description)
     {
         Tasks.Add(new() { Url = list.Url.TrimEnd('/') + "/" + Guid.NewGuid() + ".ics", ListUrl = list.Url, CalendarData = CalendarDocument.Create(title, description), Pending = "put" }); Save();
